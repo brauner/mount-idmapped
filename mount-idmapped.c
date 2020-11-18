@@ -632,12 +632,11 @@ static const struct option longopts[] = {
 
 int main(int argc, char *argv[])
 {
-	int ret;
+	int fd, ret;
 	int index = 0;
 	const char *caller_idmap = NULL, *source = NULL, *target = NULL;
 	char *const *new_argv;
 	int new_argc;
-	struct mount_attr attr = {};
 
 	list_init(&active_map);
 	while ((ret = getopt_long_only(argc, argv, "", longopts, &index)) != -1) {
@@ -671,16 +670,27 @@ int main(int argc, char *argv[])
 	source = new_argv[0];
 	target = new_argv[1];
 
-	int fd = sys_open_tree(-EBADF, source, OPEN_TREE_CLONE | OPEN_TREE_CLOEXEC | AT_EMPTY_PATH);
+	fd = sys_open_tree(-EBADF, source, OPEN_TREE_CLONE | OPEN_TREE_CLOEXEC | AT_EMPTY_PATH);
 	if (fd < 0) {
 		fprintf(stderr, "%m - Failed to open %s\n", source);
 		exit(EXIT_FAILURE);
 	}
 
 	if (!list_empty(&active_map)) {
+		struct mount_attr attr = {
+			.attr_set = MOUNT_ATTR_IDMAP,
+		};
+
 		attr.userns_fd = get_userns_fd(&active_map);
 		if (attr.userns_fd < 0) {
 			fprintf(stderr, "%m - Failed to create user namespace\n");
+			exit(EXIT_FAILURE);
+		}
+
+		ret = sys_mount_setattr(fd, "", AT_EMPTY_PATH | AT_RECURSIVE, &attr,
+				sizeof(attr));
+		if (ret < 0) {
+			fprintf(stderr, "%m - Failed to change mount attributes\n");
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -690,24 +700,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%m - Failed to attach mount to %s\n", target);
 		exit(EXIT_FAILURE);
 	}
-
-	close(fd);
-	if (!list_empty(&active_map)) {
-		fd = open(target, O_RDONLY | O_CLOEXEC);
-		if (fd < 0) {
-			fprintf(stderr, "%m - Failed to open %s\n", target);
-			exit(EXIT_FAILURE);
-		}
-
-		attr.attr_set = MOUNT_ATTR_IDMAP;
-		ret = sys_mount_setattr(fd, "", AT_EMPTY_PATH | AT_RECURSIVE, &attr, sizeof(attr));
-		if (ret < 0) {
-			fprintf(stderr, "%m - Failed to change mount attributes\n");
-			exit(EXIT_FAILURE);
-		}
-	}
-
-
 	close(fd);
 
 	if (caller_idmap)
