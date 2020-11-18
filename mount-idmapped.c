@@ -57,8 +57,8 @@
 #define MOUNT_ATTR_STRICTATIME 0x00000020
 #endif
 
-#ifndef MOUNT_ATTR_SHIFT
-#define MOUNT_ATTR_SHIFT 0x00100000
+#ifndef MOUNT_ATTR_IDMAP
+#define MOUNT_ATTR_IDMAP 0x00100000
 #endif
 
 #ifndef AT_RECURSIVE
@@ -701,7 +701,7 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 
-		attr.attr_set = MOUNT_ATTR_SHIFT;
+		attr.attr_set = MOUNT_ATTR_IDMAP;
 		ret = sys_mount_setattr(fd, "", AT_EMPTY_PATH | AT_RECURSIVE, &attr, sizeof(attr));
 		if (ret < 0) {
 			fprintf(stderr, "%m - Failed to change mount attributes\n");
