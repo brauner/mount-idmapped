@@ -111,19 +111,25 @@
 		#define __NR_mount_setattr 551
 	#elif defined _MIPS_SIM
 		#if _MIPS_SIM == _MIPS_SIM_ABI32	/* o32 */
-			#define __NR_mount_setattr 4441
+			#define __NR_mount_setattr (441 + 4000)
 		#endif
 		#if _MIPS_SIM == _MIPS_SIM_NABI32	/* n32 */
-			#define __NR_mount_setattr 6441
+			#define __NR_mount_setattr (441 + 6000)
 		#endif
 		#if _MIPS_SIM == _MIPS_SIM_ABI64	/* n64 */
-			#define __NR_mount_setattr 5441
+			#define __NR_mount_setattr (441 + 5000)
 		#endif
 	#elif defined __ia64__
 		#define __NR_mount_setattr (441 + 1024)
 	#else
 		#define __NR_mount_setattr 441
 	#endif
+struct mount_attr {
+	__u64 attr_set;
+	__u64 attr_clr;
+	__u64 propagation;
+	__u64 userns_fd;
+};
 #endif
 
 #ifndef __NR_fsconfig
@@ -203,14 +209,6 @@
 		fprintf(stderr, format, ##__VA_ARGS__);       \
 		__internal_ret__;                             \
 	})
-
-struct mount_attr {
-	__u64 attr_set;
-	__u64 attr_clr;
-	__u64 propagation;
-	__u32 userns;
-	__u32 reserved[0];
-};
 
 static inline int sys_mount_setattr(int dfd, const char *path, unsigned int flags,
 				    struct mount_attr *attr, size_t size)
@@ -680,8 +678,8 @@ int main(int argc, char *argv[])
 	}
 
 	if (!list_empty(&active_map)) {
-		attr.userns = get_userns_fd(&active_map);
-		if (attr.userns < 0) {
+		attr.userns_fd = get_userns_fd(&active_map);
+		if (attr.userns_fd < 0) {
 			fprintf(stderr, "%m - Failed to create user namespace\n");
 			exit(EXIT_FAILURE);
 		}
