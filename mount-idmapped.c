@@ -607,18 +607,18 @@ static void usage(void)
 
 	fprintf(stderr, "Examples:\n");
 	fprintf(stderr, "    # Create an idmapped mount of /source on /target with both ('b') uids and gids mapped\n");
-	fprintf(stderr, "    mount2 --map-mount b:0:10000:10000 /source /target\n\n");
+	fprintf(stderr, "    mount-idmapped --map-mount b:0:10000:10000 /source /target\n\n");
 	fprintf(stderr, "    # Create an idmapped mount of /source on /target\n");
 	fprintf(stderr, "    # with uids ('u') and gids ('g') mapped separately\n");
-	fprintf(stderr, "    mount2 --map-mount u:0:10000:10000 g:0:20000:20000 /source /target\n\n");
+	fprintf(stderr, "    mount-idmapped --map-mount u:0:10000:10000 g:0:20000:20000 /source /target\n\n");
 	fprintf(stderr, "    # Create an idmapped mount of /source on /target\n");
 	fprintf(stderr, "    # with both ('b') uids and gids mapped and a user namespace\n");
 	fprintf(stderr, "    # with both ('b') uids and gids mapped\n");
-	fprintf(stderr, "    mount2 --map-caller b:0:10000:10000 --map-mount b:0:10000:1000 /source /target\n\n");
+	fprintf(stderr, "    mount-idmapped --map-caller b:0:10000:10000 --map-mount b:0:10000:1000 /source /target\n\n");
 	fprintf(stderr, "    # Create an idmapped mount of /source on /target\n");
 	fprintf(stderr, "    # with uids ('u') gids ('g') mapped separately\n");
 	fprintf(stderr, "    # and a user namespace with both ('b') uids and gids mapped\n");
-	fprintf(stderr, "    mount2 --map-caller u:0:10000:10000 g:0:20000:20000 --map-mount b:0:10000:1000 /source /target\n");
+	fprintf(stderr, "    mount-idmapped --map-caller u:0:10000:10000 g:0:20000:20000 --map-mount b:0:10000:1000 /source /target\n");
 
 	_exit(EXIT_SUCCESS);
 }
