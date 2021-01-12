@@ -109,21 +109,21 @@
 
 #ifndef __NR_mount_setattr
 	#if defined __alpha__
-		#define __NR_mount_setattr 551
+		#define __NR_mount_setattr 552
 	#elif defined _MIPS_SIM
 		#if _MIPS_SIM == _MIPS_SIM_ABI32	/* o32 */
-			#define __NR_mount_setattr (441 + 4000)
+			#define __NR_mount_setattr (442 + 4000)
 		#endif
 		#if _MIPS_SIM == _MIPS_SIM_NABI32	/* n32 */
-			#define __NR_mount_setattr (441 + 6000)
+			#define __NR_mount_setattr (442 + 6000)
 		#endif
 		#if _MIPS_SIM == _MIPS_SIM_ABI64	/* n64 */
-			#define __NR_mount_setattr (441 + 5000)
+			#define __NR_mount_setattr (442 + 5000)
 		#endif
 	#elif defined __ia64__
-		#define __NR_mount_setattr (441 + 1024)
+		#define __NR_mount_setattr (442 + 1024)
 	#else
-		#define __NR_mount_setattr 441
+		#define __NR_mount_setattr 442
 	#endif
 struct mount_attr {
 	__u64 attr_set;
