@@ -133,26 +133,6 @@ struct mount_attr {
 };
 #endif
 
-#ifndef __NR_fsconfig
-	#if defined __alpha__
-		#define __NR_fsconfig 541
-	#elif defined _MIPS_SIM
-		#if _MIPS_SIM == _MIPS_SIM_ABI32	/* o32 */
-			#define __NR_fsconfig 4431
-		#endif
-		#if _MIPS_SIM == _MIPS_SIM_NABI32	/* n32 */
-			#define __NR_fsconfig 6431
-		#endif
-		#if _MIPS_SIM == _MIPS_SIM_ABI64	/* n64 */
-			#define __NR_fsconfig 5431
-		#endif
-	#elif defined __ia64__
-		#define __NR_fsconfig (431 + 1024)
-	#else
-		#define __NR_fsconfig 431
-	#endif
-#endif
-
 #ifndef __NR_open_tree
 	#if defined __alpha__
 		#define __NR_open_tree 538
@@ -215,11 +195,6 @@ static inline int sys_mount_setattr(int dfd, const char *path, unsigned int flag
 				    struct mount_attr *attr, size_t size)
 {
 	return syscall(__NR_mount_setattr, dfd, path, flags, attr, size);
-}
-
-static inline int sys_fsconfig(int fd, unsigned int cmd, const char *key, const void *value, int aux)
-{
-	return syscall(__NR_fsconfig, fd, cmd, key, value, aux);
 }
 
 static inline int sys_open_tree(int dfd, const char *filename, unsigned int flags)
