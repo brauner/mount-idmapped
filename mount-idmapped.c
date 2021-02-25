@@ -26,6 +26,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+/* mount_setattr() */
 #ifndef MOUNT_ATTR_RDONLY
 #define MOUNT_ATTR_RDONLY 0x00000001
 #endif
@@ -66,10 +67,33 @@
 #define AT_RECURSIVE 0x8000
 #endif
 
-#ifndef MAKE_PROPAGATION_SHARED
-#define MAKE_PROPAGATION_SHARED 4
+#ifndef __NR_mount_setattr
+	#if defined __alpha__
+		#define __NR_mount_setattr 552
+	#elif defined _MIPS_SIM
+		#if _MIPS_SIM == _MIPS_SIM_ABI32	/* o32 */
+			#define __NR_mount_setattr (442 + 4000)
+		#endif
+		#if _MIPS_SIM == _MIPS_SIM_NABI32	/* n32 */
+			#define __NR_mount_setattr (442 + 6000)
+		#endif
+		#if _MIPS_SIM == _MIPS_SIM_ABI64	/* n64 */
+			#define __NR_mount_setattr (442 + 5000)
+		#endif
+	#elif defined __ia64__
+		#define __NR_mount_setattr (442 + 1024)
+	#else
+		#define __NR_mount_setattr 442
+	#endif
+struct mount_attr {
+	__u64 attr_set;
+	__u64 attr_clr;
+	__u64 propagation;
+	__u64 userns_fd;
+};
 #endif
 
+/* open_tree() */
 #ifndef OPEN_TREE_CLONE
 #define OPEN_TREE_CLONE 1
 #endif
@@ -78,7 +102,27 @@
 #define OPEN_TREE_CLOEXEC O_CLOEXEC
 #endif
 
-/* move_mount() flags */
+#ifndef __NR_open_tree
+	#if defined __alpha__
+		#define __NR_open_tree 538
+	#elif defined _MIPS_SIM
+		#if _MIPS_SIM == _MIPS_SIM_ABI32	/* o32 */
+			#define __NR_open_tree 4428
+		#endif
+		#if _MIPS_SIM == _MIPS_SIM_NABI32	/* n32 */
+			#define __NR_open_tree 6428
+		#endif
+		#if _MIPS_SIM == _MIPS_SIM_ABI64	/* n64 */
+			#define __NR_open_tree 5428
+		#endif
+	#elif defined __ia64__
+		#define __NR_open_tree (428 + 1024)
+	#else
+		#define __NR_open_tree 428
+	#endif
+#endif
+
+/* move_mount() */
 #ifndef MOVE_MOUNT_F_SYMLINKS
 #define MOVE_MOUNT_F_SYMLINKS 0x00000001 /* Follow symlinks on from path */
 #endif
@@ -107,52 +151,6 @@
 #define MOVE_MOUNT__MASK 0x00000077
 #endif
 
-#ifndef __NR_mount_setattr
-	#if defined __alpha__
-		#define __NR_mount_setattr 552
-	#elif defined _MIPS_SIM
-		#if _MIPS_SIM == _MIPS_SIM_ABI32	/* o32 */
-			#define __NR_mount_setattr (442 + 4000)
-		#endif
-		#if _MIPS_SIM == _MIPS_SIM_NABI32	/* n32 */
-			#define __NR_mount_setattr (442 + 6000)
-		#endif
-		#if _MIPS_SIM == _MIPS_SIM_ABI64	/* n64 */
-			#define __NR_mount_setattr (442 + 5000)
-		#endif
-	#elif defined __ia64__
-		#define __NR_mount_setattr (442 + 1024)
-	#else
-		#define __NR_mount_setattr 442
-	#endif
-struct mount_attr {
-	__u64 attr_set;
-	__u64 attr_clr;
-	__u64 propagation;
-	__u64 userns_fd;
-};
-#endif
-
-#ifndef __NR_open_tree
-	#if defined __alpha__
-		#define __NR_open_tree 538
-	#elif defined _MIPS_SIM
-		#if _MIPS_SIM == _MIPS_SIM_ABI32	/* o32 */
-			#define __NR_open_tree 4428
-		#endif
-		#if _MIPS_SIM == _MIPS_SIM_NABI32	/* n32 */
-			#define __NR_open_tree 6428
-		#endif
-		#if _MIPS_SIM == _MIPS_SIM_ABI64	/* n64 */
-			#define __NR_open_tree 5428
-		#endif
-	#elif defined __ia64__
-		#define __NR_open_tree (428 + 1024)
-	#else
-		#define __NR_open_tree 428
-	#endif
-#endif
-
 #ifndef __NR_move_mount
 	#if defined __alpha__
 		#define __NR_move_mount 539
@@ -173,7 +171,9 @@ struct mount_attr {
 	#endif
 #endif
 
+/* A few helpful macros. */
 #define IDMAPLEN 4096
+
 #define STRLITERALLEN(x) (sizeof(""x"") - 1)
 #define INTTYPE_TO_STRLEN(type)             \
 	(2 + (sizeof(type) <= 1             \
@@ -183,12 +183,34 @@ struct mount_attr {
 			: sizeof(type) <= 4 \
 			      ? 10          \
 			      : sizeof(type) <= 8 ? 20 : sizeof(int[-2 * (sizeof(type) > 8)])))
+
 #define log_error_errno(__ret__, __errno__, format, ...)      \
 	({                                                    \
 		typeof(__ret__) __internal_ret__ = (__ret__); \
 		errno = (__errno__);                          \
 		fprintf(stderr, format, ##__VA_ARGS__);       \
 		__internal_ret__;                             \
+	})
+
+#define call_cleaner(cleaner) __attribute__((__cleanup__(cleaner##_function)))
+
+#define free_disarm(ptr)    \
+	({                  \
+		free(ptr);  \
+		ptr = NULL; \
+	})
+
+static inline void free_disarm_function(void *ptr)
+{
+	free_disarm(*(void **)ptr);
+}
+#define __do_free call_cleaner(free_disarm)
+
+#define move_ptr(ptr)                                 \
+	({                                            \
+		typeof(ptr) __internal_ptr__ = (ptr); \
+		(ptr) = NULL;                         \
+		__internal_ptr__;                     \
 	})
 
 static inline int sys_mount_setattr(int dfd, const char *path, unsigned int flags,
@@ -226,7 +248,7 @@ static int write_file(const char *path, const void *buf, size_t count)
 
 	fd = open(path, O_WRONLY | O_CLOEXEC | O_NOCTTY | O_NOFOLLOW);
 	if (fd < 0)
-		return -1;
+		return -errno;
 
 	ret = write_nointr(fd, buf, count);
 	close(fd);
@@ -267,11 +289,6 @@ struct list {
 	struct list *prev;
 };
 
-#define init_list(l)                 \
-	{                            \
-		.next = l, .prev = l \
-	}
-
 #define list_for_each(__iterator, __list) \
 	for (__iterator = (__list)->next; __iterator != __list; __iterator = __iterator->next)
 
@@ -279,21 +296,6 @@ static inline void list_init(struct list *list)
 {
 	list->elem = NULL;
 	list->next = list->prev = list;
-}
-
-static inline void list_add_elem(struct list *list, void *elem)
-{
-	list->elem = elem;
-}
-
-static inline void *list_first_elem(const struct list *list)
-{
-	return list->next->elem;
-}
-
-static inline void *list_last_elem(const struct list *list)
-{
-	return list->prev->elem;
 }
 
 static inline int list_empty(const struct list *list)
@@ -309,37 +311,9 @@ static inline void __list_add(struct list *new, struct list *prev, struct list *
 	prev->next = new;
 }
 
-static inline void list_add(struct list *head, struct list *list)
-{
-	__list_add(list, head, head->next);
-}
-
 static inline void list_add_tail(struct list *head, struct list *list)
 {
 	__list_add(list, head->prev, head);
-}
-
-static inline void list_del(struct list *list)
-{
-	struct list *next, *prev;
-
-	next = list->next;
-	prev = list->prev;
-	next->prev = prev;
-	prev->next = next;
-}
-
-static inline size_t list_len(struct list *list)
-{
-	size_t i = 0;
-	struct list *iter;
-
-	list_for_each(iter, list)
-	{
-		i++;
-	}
-
-	return i;
 }
 
 enum idtype {
@@ -358,25 +332,26 @@ static struct list active_map;
 
 static int add_map_entry(long host_id, long ns_id, long range, int which)
 {
-	struct list *tmp = NULL;
-	struct id_map *newmap;
+	__do_free struct list *new_list = NULL;
+	__do_free struct id_map *newmap = NULL;
 
 	newmap = malloc(sizeof(*newmap));
 	if (!newmap)
-		return -1;
+		return -ENOMEM;
 
-	newmap->hostid = host_id;
-	newmap->nsid = ns_id;
-	newmap->range = range;
-	newmap->idtype = which;
-	tmp = malloc(sizeof(*tmp));
-	if (!tmp) {
-		free(newmap);
-		return -1;
-	}
+	new_list = malloc(sizeof(struct list));
+	if (!new_list)
+		return -ENOMEM;
 
-	tmp->elem = newmap;
-	list_add_tail(&active_map, tmp);
+	*newmap = (struct id_map){
+		.hostid		= host_id,
+		.nsid		= ns_id,
+		.range		= range,
+		.idtype		= which,
+	};
+
+	new_list->elem = move_ptr(newmap);
+	list_add_tail(&active_map, move_ptr(new_list));
 	return 0;
 }
 
@@ -542,24 +517,28 @@ static int wait_for_pid(pid_t pid)
 
 again:
 	ret = waitpid(pid, &status, 0);
-	if (ret == -1) {
+	if (ret < 0) {
 		if (errno == EINTR)
 			goto again;
 
 		return -1;
 	}
 
-	if (!WIFEXITED(status))
+	if (ret != pid)
+		goto again;
+
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
 		return -1;
 
-	return WEXITSTATUS(status);
+	return 0;
 }
 
 static int get_userns_fd(struct list *idmap)
 {
 	int ret;
 	pid_t pid;
-	char path[256];
+	char path_ns[STRLITERALLEN("/proc") + INTTYPE_TO_STRLEN(pid_t) +
+		  STRLITERALLEN("/ns/user") + 1];
 
 	pid = do_clone(clone_cb, NULL, CLONE_NEWUSER | CLONE_NEWNS);
 	if (pid < 0)
@@ -569,10 +548,14 @@ static int get_userns_fd(struct list *idmap)
 	if (ret < 0)
 		return ret;
 
-	snprintf(path, sizeof(path), "/proc/%d/ns/user", pid);
-	ret = open(path, O_RDONLY | O_CLOEXEC);
+	ret = snprintf(path_ns, sizeof(path_ns), "/proc/%d/ns/user", pid);
+	if (ret < 0 || (size_t)ret >= sizeof(path_ns))
+		ret = -EIO;
+	else
+		ret = open(path_ns, O_RDONLY | O_CLOEXEC | O_NOCTTY);
+
 	(void)kill(pid, SIGKILL);
-	wait_for_pid(pid);
+	(void)wait_for_pid(pid);
 	return ret;
 }
 
@@ -595,6 +578,7 @@ static void usage(void)
 	fprintf(stderr, "    # with uids ('u') gids ('g') mapped separately\n");
 	fprintf(stderr, "    # and a user namespace with both ('b') uids and gids mapped\n");
 	fprintf(stderr, "    mount-idmapped --map-caller u:0:10000:10000 g:0:20000:20000 --map-mount b:0:10000:1000 /source /target\n");
+	fprintf(stderr, "    # To idmap a whole mount tree pass --recursive\n");
 
 	_exit(EXIT_SUCCESS);
 }
@@ -603,6 +587,7 @@ static const struct option longopts[] = {
 	{"map-mount",	required_argument,	0,	'a'},
 	{"map-caller",	required_argument,	0,	'b'},
 	{"help",	no_argument,		0,	'c'},
+	{"recursive",	no_argument,		0,	'd'},
 	NULL,
 };
 
@@ -613,6 +598,7 @@ int main(int argc, char *argv[])
 	const char *caller_idmap = NULL, *source = NULL, *target = NULL;
 	char *const *new_argv;
 	int new_argc;
+	bool recursive = false;
 
 	list_init(&active_map);
 	while ((ret = getopt_long_only(argc, argv, "", longopts, &index)) != -1) {
@@ -624,8 +610,11 @@ int main(int argc, char *argv[])
 				_exit(EXIT_FAILURE);
 			}
 			break;
-		case 'd':
+		case 'b':
 			caller_idmap = optarg;
+			break;
+		case 'd':
+			recursive = true;
 			break;
 		case 'c':
 			/* fallthrough */
@@ -633,9 +622,6 @@ int main(int argc, char *argv[])
 			usage();
 		}
 	}
-
-	if (list_empty(&active_map))
-		fprintf(stderr, "No idmaps specified for the mount\n");
 
 	new_argv = &argv[optind];
 	new_argc = argc - optind;
@@ -646,7 +632,11 @@ int main(int argc, char *argv[])
 	source = new_argv[0];
 	target = new_argv[1];
 
-	fd = sys_open_tree(-EBADF, source, OPEN_TREE_CLONE | OPEN_TREE_CLOEXEC | AT_EMPTY_PATH);
+	fd = sys_open_tree(-EBADF, source,
+			   OPEN_TREE_CLONE |
+			   OPEN_TREE_CLOEXEC |
+			   AT_EMPTY_PATH |
+			   recursive ? AT_RECURSIVE : 0);
 	if (fd < 0) {
 		fprintf(stderr, "%m - Failed to open %s\n", source);
 		exit(EXIT_FAILURE);
@@ -669,6 +659,7 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "%m - Failed to change mount attributes\n");
 			exit(EXIT_FAILURE);
 		}
+		close(attr.userns_fd);
 	}
 
 	ret = sys_move_mount(fd, "", -EBADF, target, MOVE_MOUNT_F_EMPTY_PATH);
