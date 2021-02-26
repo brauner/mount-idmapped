@@ -471,7 +471,6 @@ static int map_ids(struct list *idmap, pid_t pid)
 	int fill, left;
 	char u_or_g;
 	char *pos;
-	struct id_map *map;
 	struct list *iterator;
 	enum idtype type;
 	int ret = 0, gidmap = 0, uidmap = 0;
@@ -484,7 +483,7 @@ static int map_ids(struct list *idmap, pid_t pid)
 		pos = mapbuf;
 
 		list_for_each(iterator, idmap) {
-			map = iterator->elem;
+			struct id_map *map = iterator->elem;
 			if (map->idtype != type)
 				continue;
 
