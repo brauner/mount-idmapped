@@ -471,7 +471,6 @@ static int map_ids(struct list *idmap, pid_t pid)
 	int fill, left;
 	char u_or_g;
 	enum idtype type;
-	int gidmap = 0, uidmap = 0;
 	char mapbuf[STRLITERALLEN("new@idmap") + STRLITERALLEN(" ") +
 		    INTTYPE_TO_STRLEN(pid_t) + STRLITERALLEN(" ") + IDMAPLEN] = {};
 	bool had_entry = false;
