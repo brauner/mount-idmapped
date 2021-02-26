@@ -359,14 +359,17 @@ typedef enum idmap_type_t {
 
 struct id_map {
 	idmap_type_t map_type;
-	unsigned long nsid;
-	unsigned long hostid;
-	unsigned long range;
+	__u32 nsid;
+	__u32 hostid;
+	__u32 range;
 };
 
 static struct list active_map;
 
-static int add_map_entry(long host_id, long ns_id, long range, int which)
+static int add_map_entry(__u32 id_host,
+			 __u32 id_ns,
+			 __u32 range,
+			 idmap_type_t map_type)
 {
 	__do_free struct list *new_list = NULL;
 	__do_free struct id_map *newmap = NULL;
@@ -380,10 +383,10 @@ static int add_map_entry(long host_id, long ns_id, long range, int which)
 		return -ENOMEM;
 
 	*newmap = (struct id_map){
-		.hostid		= host_id,
-		.nsid		= ns_id,
+		.hostid		= id_host,
+		.nsid		= id_ns,
 		.range		= range,
-		.map_type	= which,
+		.map_type	= map_type,
 	};
 
 	new_list->elem = move_ptr(newmap);
@@ -393,15 +396,15 @@ static int add_map_entry(long host_id, long ns_id, long range, int which)
 
 static int parse_map(char *map)
 {
-	int ret;
-	long host_id, ns_id, range;
-	char which;
 	char types[2] = {'u', 'g'};
+	int ret;
+	__u32 id_host, id_ns, range;
+	char which;
 
 	if (!map)
 		return -1;
 
-	ret = sscanf(map, "%c:%ld:%ld:%ld", &which, &ns_id, &host_id, &range);
+	ret = sscanf(map, "%c:%u:%u:%u", &which, &id_ns, &id_host, &range);
 	if (ret != 4)
 		return -1;
 
@@ -419,7 +422,7 @@ static int parse_map(char *map)
 		else
 			map_type = ID_TYPE_GID;
 
-		ret = add_map_entry(host_id, ns_id, range, map_type);
+		ret = add_map_entry(id_host, id_ns, range, map_type);
 		if (ret < 0)
 			return ret;
 	}
@@ -491,7 +494,7 @@ static int map_ids(struct list *idmap, pid_t pid)
 			had_entry = true;
 
 			left = IDMAPLEN - (pos - mapbuf);
-			fill = snprintf(pos, left, "%lu %lu %lu\n", map->nsid, map->hostid, map->range);
+			fill = snprintf(pos, left, "%u %u %u\n", map->nsid, map->hostid, map->range);
 			/*
 			 * The kernel only takes <= 4k for writes to
 			 * /proc/<pid>/{g,u}id_map
