@@ -565,29 +565,63 @@ static int get_userns_fd(struct list *idmap)
 	return ret;
 }
 
+static inline bool strnequal(const char *str, const char *eq, size_t len)
+{
+	return strncmp(str, eq, len) == 0;
+}
+
 static void usage(void)
 {
-	fprintf(stderr, "Description:\n");
-	fprintf(stderr, "    Create an id-mapped mount\n\n");
-
-	fprintf(stderr, "Examples:\n");
-	fprintf(stderr, "    # Create an idmapped mount of /source on /target with both ('b') uids and gids mapped\n");
-	fprintf(stderr, "    mount-idmapped --map-mount b:0:10000:10000 /source /target\n\n");
-	fprintf(stderr, "    # Create an idmapped mount of /source on /target\n");
-	fprintf(stderr, "    # with uids ('u') and gids ('g') mapped separately\n");
-	fprintf(stderr, "    mount-idmapped --map-mount u:0:10000:10000 g:0:20000:20000 /source /target\n\n");
-	fprintf(stderr, "    # Create an idmapped mount of /source on /target\n");
-	fprintf(stderr, "    # with both ('b') uids and gids mapped and a user namespace\n");
-	fprintf(stderr, "    # with both ('b') uids and gids mapped\n");
-	fprintf(stderr, "    mount-idmapped --map-caller b:0:10000:10000 --map-mount b:0:10000:1000 /source /target\n\n");
-	fprintf(stderr, "    # Create an idmapped mount of /source on /target\n");
-	fprintf(stderr, "    # with uids ('u') gids ('g') mapped separately\n");
-	fprintf(stderr, "    # and a user namespace with both ('b') uids and gids mapped\n");
-	fprintf(stderr, "    mount-idmapped --map-caller u:0:10000:10000 g:0:20000:20000 --map-mount b:0:10000:1000 /source /target\n");
-	fprintf(stderr, "    # To idmap a whole mount tree pass --recursive\n");
-
+	const char *text = "\
+mount-idmapped --map-mount=<idmap> <source> <target>\n\
+\n\
+Create an idmapped mount of <source> at <target>\n\
+Options:\n\
+  --map-mount=<idmap>\n\
+	Specify an idmap for the <target> mount in the format\n\
+	<idmap-type>:<id-from>:<id-to>:<id-range>\n\
+	The <idmap-type> can be:\n\
+	\"b\" or \"both\"	-> map both uids and gids\n\
+	\"u\" or \"uid\"	-> map uids\n\
+	\"g\" or \"gid\"	-> map gids\n\
+	For example, specifying:\n\
+	both:1000:1001:1	-> map uid and gid 1000 to uid and gid 1001 in <target> and no other ids\n\
+	uid:20000:100000:1000	-> map uid 20000 to uid 100000, uid 20001 to uid 100001 [...] in <target>\n\
+	Currently up to 340 separate idmappings may be specified.\n\n\
+  --map-mount=/proc/<pid>/ns/user\n\
+	Specify a path to a user namespace whose idmap is to be used.\n\n\
+  --map-caller=<idmap>\n\
+        Specify an idmap to be used for the caller, i.e. move the caller into a new user namespace\n\
+	with the requested mapping.\n\n\
+  --recursive\n\
+	Copy the whole mount tree from <source> and apply the idmap to everyone at <target>.\n\n\
+Examples:\n\
+  - Create an idmapped mount of /source on /target with both ('b') uids and gids mapped:\n\
+	mount-idmapped --map-mount b:0:10000:10000 /source /target\n\n\
+  - Create an idmapped mount of /source on /target with uids ('u') and gids ('g') mapped separately:\n\
+	mount-idmapped --map-mount u:0:10000:10000 g:0:20000:20000 /source /target\n\n\
+  - Create an idmapped mount of /source on /target with both ('b') uids and gids mapped and a user namespace\n\
+    with both ('b') uids and gids mapped:\n\
+	mount-idmapped --map-caller b:0:10000:10000 --map-mount b:0:10000:1000 /source /target\n\n\
+  - Create an idmapped mount of /source on /target with uids ('u') gids ('g') mapped separately\n\
+    and a user namespace with both ('b') uids and gids mapped:\n\
+	mount-idmapped --map-caller u:0:10000:10000 g:0:20000:20000 --map-mount b:0:10000:1000 /source /target\n\
+";
+	fprintf(stderr, "%s", text);
 	_exit(EXIT_SUCCESS);
 }
+
+#define exit_usage(format, ...)                         \
+	({                                              \
+		fprintf(stderr, format, ##__VA_ARGS__); \
+		usage();                                \
+	})
+
+#define exit_log(format, ...)                           \
+	({                                              \
+		fprintf(stderr, format, ##__VA_ARGS__); \
+		exit(EXIT_FAILURE);                     \
+	})
 
 static const struct option longopts[] = {
 	{"map-mount",	required_argument,	0,	'a'},
@@ -599,22 +633,27 @@ static const struct option longopts[] = {
 
 int main(int argc, char *argv[])
 {
-	int fd, ret;
+	int fd_userns = -EBADF;
 	int index = 0;
 	const char *caller_idmap = NULL, *source = NULL, *target = NULL;
-	char *const *new_argv;
-	int new_argc;
 	bool recursive = false;
+	int fd_tree, new_argc, ret;
+	char *const *new_argv;
 
 	list_init(&active_map);
 	while ((ret = getopt_long_only(argc, argv, "", longopts, &index)) != -1) {
 		switch (ret) {
 		case 'a':
-			ret = parse_map(optarg);
-			if (ret < 0) {
-				fprintf(stderr, "Failed to parse idmaps for mount\n");
-				_exit(EXIT_FAILURE);
+			if (strnequal(optarg, "/proc", STRLITERALLEN("/proc/"))) {
+				fd_userns = open(optarg, O_RDONLY | O_CLOEXEC);
+				if (fd_userns < 0)
+					exit_log("%m - Failed top open user namespace path %s\n", optarg);
+				break;
 			}
+
+			ret = parse_map(optarg);
+			if (ret < 0)
+				exit_log("Failed to parse idmaps for mount\n");
 			break;
 		case 'b':
 			caller_idmap = optarg;
@@ -631,20 +670,18 @@ int main(int argc, char *argv[])
 
 	new_argv = &argv[optind];
 	new_argc = argc - optind;
-	if (new_argc < 2) {
-		fprintf(stderr, "Missing source or target mountpoint\n");
-		exit(EXIT_FAILURE);
-	}
+	if (new_argc < 2)
+		exit_usage("Missing source or target mountpoint\n\n");
 	source = new_argv[0];
 	target = new_argv[1];
 
-	fd = sys_open_tree(-EBADF, source,
-			   OPEN_TREE_CLONE |
-			   OPEN_TREE_CLOEXEC |
-			   AT_EMPTY_PATH |
-			   recursive ? AT_RECURSIVE : 0);
-	if (fd < 0) {
-		fprintf(stderr, "%m - Failed to open %s\n", source);
+	fd_tree = sys_open_tree(-EBADF, source,
+				OPEN_TREE_CLONE |
+				OPEN_TREE_CLOEXEC |
+				AT_EMPTY_PATH |
+				recursive ? AT_RECURSIVE : 0);
+	if (fd_tree < 0) {
+		exit_log("%m - Failed to open %s\n", source);
 		exit(EXIT_FAILURE);
 	}
 
@@ -654,30 +691,24 @@ int main(int argc, char *argv[])
 		};
 
 		attr.userns_fd = get_userns_fd(&active_map);
-		if (attr.userns_fd < 0) {
-			fprintf(stderr, "%m - Failed to create user namespace\n");
-			exit(EXIT_FAILURE);
-		}
+		if (attr.userns_fd < 0)
+			exit_log("%m - Failed to create user namespace\n");
 
-		ret = sys_mount_setattr(fd, "", AT_EMPTY_PATH | AT_RECURSIVE, &attr,
+		ret = sys_mount_setattr(fd_tree, "", AT_EMPTY_PATH | AT_RECURSIVE, &attr,
 				sizeof(attr));
-		if (ret < 0) {
-			fprintf(stderr, "%m - Failed to change mount attributes\n");
-			exit(EXIT_FAILURE);
-		}
+		if (ret < 0)
+			exit_log("%m - Failed to change mount attributes\n");
 		close(attr.userns_fd);
 	}
 
-	ret = sys_move_mount(fd, "", -EBADF, target, MOVE_MOUNT_F_EMPTY_PATH);
-	if (ret < 0) {
-		fprintf(stderr, "%m - Failed to attach mount to %s\n", target);
-		exit(EXIT_FAILURE);
-	}
-	close(fd);
+	ret = sys_move_mount(fd_tree, "", -EBADF, target, MOVE_MOUNT_F_EMPTY_PATH);
+	if (ret < 0)
+		exit_log("%m - Failed to attach mount to %s\n", target);
+	close(fd_tree);
 
 	if (caller_idmap) {
 		execlp("lxc-usernsexec", "lxc-usernsexec", "-m", caller_idmap, "bash", (char *)NULL);
-		fprintf(stderr, "Note that moving the caller into a new user namespace requires \"lxc-usernsexec\" to be installed\n");
+		exit_log("Note that moving the caller into a new user namespace requires \"lxc-usernsexec\" to be installed\n");
 	}
 	exit(EXIT_SUCCESS);
 }
