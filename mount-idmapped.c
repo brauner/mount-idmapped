@@ -479,10 +479,6 @@ static int map_ids(struct list *idmap, pid_t pid)
 	char mapbuf[STRLITERALLEN("new@idmap") + STRLITERALLEN(" ") +
 		    INTTYPE_TO_STRLEN(pid_t) + STRLITERALLEN(" ") + IDMAPLEN] = {};
 	bool had_entry = false;
-	int hostuid, hostgid;
-
-	hostuid = geteuid();
-	hostgid = getegid();
 
 	for (type = ID_TYPE_UID, u_or_g = 'u'; type <= ID_TYPE_GID;
 	     type++, u_or_g = 'g') {
