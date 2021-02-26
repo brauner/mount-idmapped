@@ -352,13 +352,13 @@ static inline void list_add_tail(struct list *head, struct list *list)
 	__list_add(list, head->prev, head);
 }
 
-enum idtype {
+typedef enum idmap_type_t {
 	ID_TYPE_UID,
 	ID_TYPE_GID
-};
+} idmap_type_t;
 
 struct id_map {
-	enum idtype idtype;
+	idmap_type_t map_type;
 	unsigned long nsid;
 	unsigned long hostid;
 	unsigned long range;
@@ -383,7 +383,7 @@ static int add_map_entry(long host_id, long ns_id, long range, int which)
 		.hostid		= host_id,
 		.nsid		= ns_id,
 		.range		= range,
-		.idtype		= which,
+		.map_type	= which,
 	};
 
 	new_list->elem = move_ptr(newmap);
@@ -393,7 +393,7 @@ static int add_map_entry(long host_id, long ns_id, long range, int which)
 
 static int parse_map(char *map)
 {
-	int i, ret, idtype;
+	int ret;
 	long host_id, ns_id, range;
 	char which;
 	char types[2] = {'u', 'g'};
@@ -408,16 +408,18 @@ static int parse_map(char *map)
 	if (which != 'b' && which != 'u' && which != 'g')
 		return -1;
 
-	for (i = 0; i < 2; i++) {
+	for (int i = 0; i < 2; i++) {
+		idmap_type_t map_type;
+
 		if (which != types[i] && which != 'b')
 			continue;
 
 		if (types[i] == 'u')
-			idtype = ID_TYPE_UID;
+			map_type = ID_TYPE_UID;
 		else
-			idtype = ID_TYPE_GID;
+			map_type = ID_TYPE_GID;
 
-		ret = add_map_entry(host_id, ns_id, range, idtype);
+		ret = add_map_entry(host_id, ns_id, range, map_type);
 		if (ret < 0)
 			return ret;
 	}
@@ -425,14 +427,14 @@ static int parse_map(char *map)
 	return 0;
 }
 
-static int write_id_mapping(enum idtype idtype, pid_t pid, const char *buf, size_t buf_size)
+static int write_id_mapping(idmap_type_t map_type, pid_t pid, const char *buf, size_t buf_size)
 {
 	__do_close int fd = -EBADF;
 	int ret;
 	char path[STRLITERALLEN("/proc") + INTTYPE_TO_STRLEN(pid_t) +
 		  STRLITERALLEN("/setgroups") + 1];
 
-	if (geteuid() != 0 && idtype == ID_TYPE_GID) {
+	if (geteuid() != 0 && map_type == ID_TYPE_GID) {
 		__do_close int setgroups_fd = -EBADF;
 
 		ret = snprintf(path, PATH_MAX, "/proc/%d/setgroups", pid);
@@ -450,7 +452,7 @@ static int write_id_mapping(enum idtype idtype, pid_t pid, const char *buf, size
 		}
 	}
 
-	ret = snprintf(path, PATH_MAX, "/proc/%d/%cid_map", pid, idtype == ID_TYPE_UID ? 'u' : 'g');
+	ret = snprintf(path, PATH_MAX, "/proc/%d/%cid_map", pid, map_type == ID_TYPE_UID ? 'u' : 'g');
 	if (ret < 0 || ret >= PATH_MAX)
 		return -E2BIG;
 
@@ -461,7 +463,7 @@ static int write_id_mapping(enum idtype idtype, pid_t pid, const char *buf, size
 	ret = write_nointr(fd, buf, buf_size);
 	if (ret != buf_size)
 		return syserror("Failed to write %cid mapping to \"%s\"",
-				idtype == ID_TYPE_UID ? 'u' : 'g', path);
+				map_type == ID_TYPE_UID ? 'u' : 'g', path);
 
 	return 0;
 }
@@ -470,13 +472,12 @@ static int map_ids(struct list *idmap, pid_t pid)
 {
 	int fill, left;
 	char u_or_g;
-	enum idtype type;
 	char mapbuf[STRLITERALLEN("new@idmap") + STRLITERALLEN(" ") +
 		    INTTYPE_TO_STRLEN(pid_t) + STRLITERALLEN(" ") + IDMAPLEN] = {};
 	bool had_entry = false;
 
-	for (type = ID_TYPE_UID, u_or_g = 'u'; type <= ID_TYPE_GID;
-	     type++, u_or_g = 'g') {
+	for (idmap_type_t map_type = ID_TYPE_UID, u_or_g = 'u';
+	     map_type <= ID_TYPE_GID; map_type++, u_or_g = 'g') {
 		char *pos = mapbuf;
 		int ret;
 		struct list *iterator;
@@ -484,7 +485,7 @@ static int map_ids(struct list *idmap, pid_t pid)
 
 		list_for_each(iterator, idmap) {
 			struct id_map *map = iterator->elem;
-			if (map->idtype != type)
+			if (map->map_type != map_type)
 				continue;
 
 			had_entry = true;
@@ -503,7 +504,7 @@ static int map_ids(struct list *idmap, pid_t pid)
 		if (!had_entry)
 			continue;
 
-		ret = write_id_mapping(type, pid, mapbuf, pos - mapbuf);
+		ret = write_id_mapping(map_type, pid, mapbuf, pos - mapbuf);
 		if (ret < 0)
 			return syserror("Failed to write mapping: %s", mapbuf);
 
