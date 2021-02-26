@@ -675,7 +675,9 @@ int main(int argc, char *argv[])
 	}
 	close(fd);
 
-	if (caller_idmap)
+	if (caller_idmap) {
 		execlp("lxc-usernsexec", "lxc-usernsexec", "-m", caller_idmap, "bash", (char *)NULL);
+		fprintf(stderr, "Note that moving the caller into a new user namespace requires \"lxc-usernsexec\" to be installed\n");
+	}
 	exit(EXIT_SUCCESS);
 }
