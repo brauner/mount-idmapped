@@ -470,7 +470,6 @@ static int map_ids(struct list *idmap, pid_t pid)
 {
 	int fill, left;
 	char u_or_g;
-	char *pos;
 	enum idtype type;
 	int ret = 0, gidmap = 0, uidmap = 0;
 	char mapbuf[STRLITERALLEN("new@idmap") + STRLITERALLEN(" ") +
@@ -479,9 +478,9 @@ static int map_ids(struct list *idmap, pid_t pid)
 
 	for (type = ID_TYPE_UID, u_or_g = 'u'; type <= ID_TYPE_GID;
 	     type++, u_or_g = 'g') {
+		char *pos = mapbuf;
 		struct list *iterator;
 
-		pos = mapbuf;
 
 		list_for_each(iterator, idmap) {
 			struct id_map *map = iterator->elem;
