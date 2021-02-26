@@ -429,7 +429,8 @@ static int write_id_mapping(enum idtype idtype, pid_t pid, const char *buf, size
 {
 	__do_close int fd = -EBADF;
 	int ret;
-	char path[PATH_MAX];
+	char path[STRLITERALLEN("/proc") + INTTYPE_TO_STRLEN(pid_t) +
+		  STRLITERALLEN("/setgroups") + 1];
 
 	if (geteuid() != 0 && idtype == ID_TYPE_GID) {
 		__do_close int setgroups_fd = -EBADF;
