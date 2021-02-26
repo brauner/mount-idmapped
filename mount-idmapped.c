@@ -175,6 +175,7 @@ struct mount_attr {
 #define IDMAPLEN 4096
 
 #define STRLITERALLEN(x) (sizeof(""x"") - 1)
+
 #define INTTYPE_TO_STRLEN(type)             \
 	(2 + (sizeof(type) <= 1             \
 		  ? 3                       \
@@ -184,10 +185,16 @@ struct mount_attr {
 			      ? 10          \
 			      : sizeof(type) <= 8 ? 20 : sizeof(int[-2 * (sizeof(type) > 8)])))
 
-#define log_error_errno(__ret__, __errno__, format, ...)      \
+#define syserror(format, ...)                           \
+	({                                              \
+		fprintf(stderr, format, ##__VA_ARGS__); \
+		(-errno);                               \
+	})
+
+#define syserror_set(__ret__, format, ...)                    \
 	({                                                    \
 		typeof(__ret__) __internal_ret__ = (__ret__); \
-		errno = (__errno__);                          \
+		errno = labs(__ret__);                        \
 		fprintf(stderr, format, ##__VA_ARGS__);       \
 		__internal_ret__;                             \
 	})
@@ -212,6 +219,35 @@ static inline void free_disarm_function(void *ptr)
 		(ptr) = NULL;                         \
 		__internal_ptr__;                     \
 	})
+
+#define define_cleanup_function(type, cleaner)           \
+	static inline void cleaner##_function(type *ptr) \
+	{                                                \
+		if (*ptr)                                \
+			cleaner(*ptr);                   \
+	}
+
+#define call_cleaner(cleaner) __attribute__((__cleanup__(cleaner##_function)))
+
+#define close_prot_errno_disarm(fd) \
+	if (fd >= 0) {              \
+		int _e_ = errno;    \
+		close(fd);          \
+		errno = _e_;        \
+		fd = -EBADF;        \
+	}
+
+static inline void close_prot_errno_disarm_function(int *fd)
+{
+       close_prot_errno_disarm(*fd);
+}
+#define __do_close call_cleaner(close_prot_errno_disarm)
+
+define_cleanup_function(FILE *, fclose);
+#define __do_fclose call_cleaner(fclose)
+
+define_cleanup_function(DIR *, closedir);
+#define __do_closedir call_cleaner(closedir)
 
 static inline int sys_mount_setattr(int dfd, const char *path, unsigned int flags,
 				    struct mount_attr *attr, size_t size)
@@ -389,35 +425,6 @@ static int parse_map(char *map)
 	return 0;
 }
 
-#define define_cleanup_function(type, cleaner)           \
-	static inline void cleaner##_function(type *ptr) \
-	{                                                \
-		if (*ptr)                                \
-			cleaner(*ptr);                   \
-	}
-
-#define call_cleaner(cleaner) __attribute__((__cleanup__(cleaner##_function)))
-
-#define close_prot_errno_disarm(fd) \
-	if (fd >= 0) {              \
-		int _e_ = errno;    \
-		close(fd);          \
-		errno = _e_;        \
-		fd = -EBADF;        \
-	}
-
-static inline void close_prot_errno_disarm_function(int *fd)
-{
-       close_prot_errno_disarm(*fd);
-}
-#define __do_close call_cleaner(close_prot_errno_disarm)
-
-define_cleanup_function(FILE *, fclose);
-#define __do_fclose call_cleaner(fclose)
-
-define_cleanup_function(DIR *, closedir);
-#define __do_closedir call_cleaner(closedir)
-
 static int write_id_mapping(enum idtype idtype, pid_t pid, const char *buf, size_t buf_size)
 {
 	__do_close int fd = -EBADF;
@@ -433,12 +440,12 @@ static int write_id_mapping(enum idtype idtype, pid_t pid, const char *buf, size
 
 		setgroups_fd = open(path, O_WRONLY);
 		if (setgroups_fd < 0 && errno != ENOENT)
-			return log_error_errno(-1, errno, "Failed to open \"%s\"", path);
+			return syserror("Failed to open \"%s\"", path);
 
 		if (setgroups_fd >= 0) {
 			ret = write_nointr(setgroups_fd, "deny\n", STRLITERALLEN("deny\n"));
 			if (ret != STRLITERALLEN("deny\n"))
-				return log_error_errno(-1, errno, "Failed to write \"deny\" to \"/proc/%d/setgroups\"", pid);
+				return syserror("Failed to write \"deny\" to \"/proc/%d/setgroups\"", pid);
 		}
 	}
 
@@ -448,12 +455,12 @@ static int write_id_mapping(enum idtype idtype, pid_t pid, const char *buf, size
 
 	fd = open(path, O_WRONLY | O_CLOEXEC);
 	if (fd < 0)
-		return log_error_errno(-1, errno, "Failed to open \"%s\"", path);
+		return syserror("Failed to open \"%s\"", path);
 
 	ret = write_nointr(fd, buf, buf_size);
 	if (ret != buf_size)
-		return log_error_errno(-1, errno, "Failed to write %cid mapping to \"%s\"",
-				       idtype == ID_TYPE_UID ? 'u' : 'g', path);
+		return syserror("Failed to write %cid mapping to \"%s\"",
+				idtype == ID_TYPE_UID ? 'u' : 'g', path);
 
 	return 0;
 }
@@ -494,7 +501,7 @@ static int map_ids(struct list *idmap, pid_t pid)
 			 * /proc/<pid>/{g,u}id_map
 			 */
 			if (fill <= 0 || fill >= left)
-				return log_error_errno(-1, -E2BIG, "Too many %cid mappings defined", u_or_g);
+				return syserror_set(-E2BIG, "Too many %cid mappings defined", u_or_g);
 
 			pos += fill;
 		}
@@ -503,7 +510,7 @@ static int map_ids(struct list *idmap, pid_t pid)
 
 		ret = write_id_mapping(type, pid, mapbuf, pos - mapbuf);
 		if (ret < 0)
-			return log_error_errno(-1, errno, "Failed to write mapping: %s", mapbuf);
+			return syserror("Failed to write mapping: %s", mapbuf);
 
 		memset(mapbuf, 0, sizeof(mapbuf));
 	}
