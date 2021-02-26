@@ -471,7 +471,6 @@ static int map_ids(struct list *idmap, pid_t pid)
 	int fill, left;
 	char u_or_g;
 	char *pos;
-	char cmd_output[PATH_MAX];
 	struct id_map *map;
 	struct list *iterator;
 	enum idtype type;
