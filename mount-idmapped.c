@@ -679,7 +679,7 @@ int main(int argc, char *argv[])
 				OPEN_TREE_CLONE |
 				OPEN_TREE_CLOEXEC |
 				AT_EMPTY_PATH |
-				recursive ? AT_RECURSIVE : 0);
+				(recursive ? AT_RECURSIVE : 0));
 	if (fd_tree < 0) {
 		exit_log("%m - Failed to open %s\n", source);
 		exit(EXIT_FAILURE);
