@@ -439,7 +439,7 @@ static int write_id_mapping(enum idtype idtype, pid_t pid, const char *buf, size
 		if (ret < 0 || ret >= PATH_MAX)
 			return -E2BIG;
 
-		setgroups_fd = open(path, O_WRONLY);
+		setgroups_fd = open(path, O_WRONLY | O_CLOEXEC);
 		if (setgroups_fd < 0 && errno != ENOENT)
 			return syserror("Failed to open \"%s\"", path);
 
