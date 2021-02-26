@@ -476,8 +476,8 @@ static int map_ids(struct list *idmap, pid_t pid)
 	struct list *iterator;
 	enum idtype type;
 	int ret = 0, gidmap = 0, uidmap = 0;
-	char mapbuf[STRLITERALLEN("new@idmap") + STRLITERALLEN(" ") + INTTYPE_TO_STRLEN(pid_t) +
-		    STRLITERALLEN(" ") + IDMAPLEN] = {0};
+	char mapbuf[STRLITERALLEN("new@idmap") + STRLITERALLEN(" ") +
+		    INTTYPE_TO_STRLEN(pid_t) + STRLITERALLEN(" ") + IDMAPLEN] = {};
 	bool had_entry = false;
 	int hostuid, hostgid;
 
