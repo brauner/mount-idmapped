@@ -544,9 +544,9 @@ static int get_userns_fd(struct list *idmap)
 	int ret;
 	pid_t pid;
 	char path_ns[STRLITERALLEN("/proc") + INTTYPE_TO_STRLEN(pid_t) +
-		  STRLITERALLEN("/ns/user") + 1];
+		     STRLITERALLEN("/ns/user") + 1];
 
-	pid = do_clone(clone_cb, NULL, CLONE_NEWUSER | CLONE_NEWNS);
+	pid = do_clone(clone_cb, NULL, CLONE_NEWUSER);
 	if (pid < 0)
 		return -errno;
 
