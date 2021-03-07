@@ -675,6 +675,56 @@ int main(int argc, char *argv[])
 	source = new_argv[0];
 	target = new_argv[1];
 
+	/*
+	 * Note, that all currently released kernels supporting open_tree() and
+	 * move_mount() are buggy when source and target are identical and
+	 * reside on a shared mount. Until my fix
+	 * https://gitlab.com/brauner/linux/-/commit/6ada58d955aed4515689b2c609eb9d755792d82a
+	 * is merged this bug can cause you to be unable to create new mounts.
+	 *
+	 * For example, whenever your "/" is mounted MS_SHARED (which it is on
+	 * systemd systems) and you were to do mount-idmapped /mnt /mnt the
+	 * following issue would apply to you:
+	 *
+	 * Creating a series of detached mounts, attaching them to the
+	 * filesystem, and unmounting them can be used to trigger an integer
+	 * overflow in ns->mounts causing the kernel to block any new mounts in
+	 * count_mounts() and returning ENOSPC because it falsely assumes that
+	 * the maximum number of mounts in the mount namespace has been
+	 * reached, i.e. it thinks it can't fit the new mounts into the mount
+	 * namespace anymore.
+	 *
+	 * The root cause of this is that detached mounts aren't handled
+	 * correctly when source and target mount are identical and reside on a
+	 * shared mount causing a broken mount tree where the detached source
+	 * itself is propagated which propagation prevents for regular
+	 * bind-mounts and new mounts. This ultimately leads to a
+	 * miscalculation of the number of mounts in the mount namespace.
+	 *
+	 * Detached mounts created via open_tree(fd, path, OPEN_TREE_CLONE) are
+	 * essentially like an unattached new mount, or an unattached
+	 * bind-mount. They can then later on be attached to the filesystem via
+	 * move_mount() which calls into attach_recursive_mount(). Part of
+	 * attaching it to the filesystem is making sure that mounts get
+	 * correctly propagated in case the destination mountpoint is
+	 * MS_SHARED, i.e. is a shared mountpoint. This is done by calling into
+	 * propagate_mnt() which walks the list of peers calling
+	 * propagate_one() on each mount in this list making sure it receives
+	 * the propagation event.  The propagate_one() functions thereby skips
+	 * both new mounts and bind mounts to not propagate them "into
+	 * themselves". Both are identified by checking whether the mount is
+	 * already attached to any mount namespace in mnt->mnt_ns. The is what
+	 * the IS_MNT_NEW() helper is responsible for.
+	 *
+	 * However, detached mounts have an anonymous mount namespace attached
+	 * to them stashed in mnt->mnt_ns which means that IS_MNT_NEW() doesn't
+	 * realize they need to be skipped causing the mount to propagate "into
+	 * itself" breaking the mount table and causing a disconnect between
+	 * the number of mounts recorded as being beneath or reachable from the
+	 * target mountpoint and the number of mounts actually recorded/counted
+	 * in ns->mounts ultimately causing an overflow which in turn prevents
+	 * any new mounts via the ENOSPC issue.
+	 */
 	fd_tree = sys_open_tree(-EBADF, source,
 				OPEN_TREE_CLONE |
 				OPEN_TREE_CLOEXEC |
