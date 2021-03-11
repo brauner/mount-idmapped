@@ -676,6 +676,13 @@ int main(int argc, char *argv[])
 	target = new_argv[1];
 
 	/*
+	 * The issue explained below is now fixed in mainline:
+	 *
+	 * https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d3110f256d126b44d34c1f662310cd295877c447
+	 *
+	 * Make sure that your distro picks it up for your supported stable
+	 * kernels.
+	 *
 	 * Note, that all currently released kernels supporting open_tree() and
 	 * move_mount() are buggy when source and target are identical and
 	 * reside on a shared mount. Until my fix
