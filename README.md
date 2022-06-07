@@ -9,7 +9,7 @@ It was mainly written to allow users to test the patchset during the review
 process and in general to experiment with idmapped mounts.
 
 ```
-mount-idmapped --map-mount=<idmap> <source> <target>
+mount-idmapped --map-mount=<idmap> [--map-mount=<idmap>] <source> <target>
 
 Create an idmapped mount of <source> at <target>
 Options:
@@ -37,18 +37,18 @@ Options:
 
 Examples:
   - Create an idmapped mount of /source on /target with both ('b') uids and gids mapped:
-        mount-idmapped --map-mount b:0:10000:10000 /source /target
+        mount-idmapped --map-mount=b:0:10000:10000 /source /target
 
   - Create an idmapped mount of /source on /target with uids ('u') and gids ('g') mapped separately:
-        mount-idmapped --map-mount u:0:10000:10000 g:0:20000:20000 /source /target
+        mount-idmapped --map-mount=u:0:10000:10000 --map-mount=g:0:20000:20000 /source /target
 
   - Create an idmapped mount of /source on /target with both ('b') uids and gids mapped and a user namespace
     with both ('b') uids and gids mapped:
-        mount-idmapped --map-caller b:0:10000:10000 --map-mount b:0:10000:1000 /source /target
+        mount-idmapped --map-caller=b:0:10000:10000 --map-mount=b:0:10000:1000 /source /target
 
   - Create an idmapped mount of /source on /target with uids ('u') gids ('g') mapped separately
     and a user namespace with both ('b') uids and gids mapped:
-        mount-idmapped --map-caller u:0:10000:10000 g:0:20000:20000 --map-mount b:0:10000:1000 /source /target
+        mount-idmapped --map-caller=u:0:10000:10000 --map-mount=g:0:20000:20000 --map-mount=b:0:10000:1000 /source /target
 ```
 
 The tool is based on the `mount_setattr()` syscall. A man page is currently up
