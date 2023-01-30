@@ -9,9 +9,9 @@ It was mainly written to allow users to test the patchset during the review
 process and in general to experiment with idmapped mounts.
 
 ```
-mount-idmapped --map-mount=<idmap> [--map-mount=<idmap>] <source> <target>
+mount-idmapped --map-mount=<idmap> [--map-mount=<idmap>] <abs path source> <abs path target>
 
-Create an idmapped mount of <source> at <target>
+Create an idmapped mount of <abs path source> at <abs path target>
 Options:
   --map-mount=<idmap>
         Specify an idmap for the <target> mount in the format
