@@ -573,9 +573,9 @@ static inline bool strnequal(const char *str, const char *eq, size_t len)
 static void usage(void)
 {
 	const char *text = "\
-mount-idmapped --map-mount=<idmap> <source> <target>\n\
+mount-idmapped --map-mount=<idmap> <abs path source> <abs path target>\n\
 \n\
-Create an idmapped mount of <source> at <target>\n\
+Create an idmapped mount of <abs path source> at <abs path target>\n\
 Options:\n\
   --map-mount=<idmap>\n\
 	Specify an idmap for the <target> mount in the format\n\
