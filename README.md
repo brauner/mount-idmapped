@@ -8,6 +8,10 @@ Note that this tool is not really meant to be production software.
 It was mainly written to allow users to test the patchset during the review
 process and in general to experiment with idmapped mounts.
 
+With util-linux v2.39 the functionality of `mount-idmapped` has been integrated
+into the `mount` utility via the `X-mount.idmap=` option for bind mounts. This
+uses the same syntax as `--map-mount=` option below.
+
 ```
 mount-idmapped --map-mount=<idmap> [--map-mount=<idmap>] <abs path source> <abs path target>
 
