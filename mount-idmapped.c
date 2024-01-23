@@ -434,7 +434,7 @@ static int write_id_mapping(idmap_type_t map_type, pid_t pid, const char *buf, s
 {
 	__do_close int fd = -EBADF;
 	int ret;
-	char path[STRLITERALLEN("/proc") + INTTYPE_TO_STRLEN(pid_t) +
+	char path[STRLITERALLEN("/proc/") + INTTYPE_TO_STRLEN(pid_t) +
 		  STRLITERALLEN("/setgroups") + 1];
 
 	if (geteuid() != 0 && map_type == ID_TYPE_GID) {
@@ -543,7 +543,7 @@ static int get_userns_fd(struct list *idmap)
 {
 	int ret;
 	pid_t pid;
-	char path_ns[STRLITERALLEN("/proc") + INTTYPE_TO_STRLEN(pid_t) +
+	char path_ns[STRLITERALLEN("/proc/") + INTTYPE_TO_STRLEN(pid_t) +
 		     STRLITERALLEN("/ns/user") + 1];
 
 	pid = do_clone(clone_cb, NULL, CLONE_NEWUSER);
@@ -644,7 +644,7 @@ int main(int argc, char *argv[])
 	while ((ret = getopt_long_only(argc, argv, "", longopts, &index)) != -1) {
 		switch (ret) {
 		case 'a':
-			if (strnequal(optarg, "/proc", STRLITERALLEN("/proc/"))) {
+			if (strnequal(optarg, "/proc/", STRLITERALLEN("/proc/"))) {
 				fd_userns = open(optarg, O_RDONLY | O_CLOEXEC);
 				if (fd_userns < 0)
 					exit_log("%m - Failed top open user namespace path %s\n", optarg);
