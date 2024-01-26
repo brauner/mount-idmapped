@@ -742,12 +742,16 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	if (!list_empty(&active_map)) {
+	if (!list_empty(&active_map) || fd_userns != -EBADF) {
 		struct mount_attr attr = {
 			.attr_set = MOUNT_ATTR_IDMAP,
 		};
 
-		attr.userns_fd = get_userns_fd(&active_map);
+		if (!list_empty(&active_map))
+			attr.userns_fd = get_userns_fd(&active_map);
+		else
+			attr.userns_fd = fd_userns;
+
 		if (attr.userns_fd < 0)
 			exit_log("%m - Failed to create user namespace\n");
 
